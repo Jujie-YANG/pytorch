@@ -4,7 +4,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
 import torch
-import torch.optim as optim
 
 features = pd.read_csv('temps.csv')
 # print('features.shape:', features.shape)
@@ -28,6 +27,8 @@ def graph():
     # set layout
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
         nrows=2, ncols=2, figsize=(10, 10))
+
+    # make x-axis labels rotate 45 degrees (looks nicer) == plt.xticks(rotation='45')
     fig.autofmt_xdate(rotation=45)
 
     # Actual max temperature today
@@ -54,12 +55,12 @@ def graph():
     ax4.set_ylabel('Temperature')
     ax4.set_title('Friend Estimate')
 
-    plt.tight_layout(pad=2)
+    plt.tight_layout(pad=2)  # set the padding of subgraphs
     # plt.show()
 
 
 # Process Data
-# hot encoding
+# one-hot encoding weeks(Mon, Tue, ... -> week_Mon, week_Tues, ... 0,1,0,0,0,0,0)
 features = pd.get_dummies(features)
 
 # actual data
@@ -79,37 +80,40 @@ input_features = preprocessing.StandardScaler().fit_transform(features)
 '''
 # 1st way (complex way) to build a NN model
 
+# All array need to be changed to tensor format
 x = torch.tensor(input_features, dtype=float)
 y = torch.tensor(labels, dtype=float)
 
 # Initialize all parameters
-weights = torch.randn((14, 128), dtype=float, requires_grad=True)
+# hidden layer has 128 neurons/ 128 column vectors/ 128 features  
+weights = torch.randn((14, 128), dtype=float, requires_grad=True) 
 biases = torch.randn(128, dtype=float, requires_grad=True)
 weights2 = torch.randn((128, 1), dtype=float, requires_grad=True)
 biases2 = torch.randn(1, dtype=float, requires_grad=True)
 
 learning_rate = 0.001
-losses = []
+losses = []  # probably used to plot graph
 
-for i in range(1000):
+for i in range(1000): # full-batch 1000 epoch
     # calculate hidden layers
-    hidden = x.mm(weights) + biases
-    # add an activation function
+    hidden = x.mm(weights) + biases # mm=matrix multiply
+    # add an activation function (non-linear map to get 128 features/neurons )
     hidden = torch.relu(hidden)
     # outcome layer (predict results)
     predictions = hidden.mm(weights2) + biases2
     # calculate loss
     loss = torch.mean((predictions - y) ** 2)
-    losses.append(loss.data.numpy())
+    # .data.numpy() -> get data and change to numpy array -> matplotlib support nd.array format but not tensor format
+    losses.append(loss.data.numpy())  
 
-    # print the value of loss 10 times in 1000 echo
+    # print the loss / 100 epoch
     if i % 100 == 0:
         print('loss:', loss)
 
-    # backtrack calculate
+    # backtrack calculate (SGD/Adam?)
     loss.backward()
 
-    # update all parameters
+    # update all parameters (optimizer)
     weights.data.add_(- learning_rate * weights.grad.data)
     biases.data.add_(- learning_rate * biases.grad.data)
     weights2.data.add_(- learning_rate * weights2.grad.data)
@@ -128,13 +132,16 @@ print(input_features.shape)
 hidden_size = 128
 output_size = 1
 batch_size = 16
+
+# the package build layers in sequence and initialize parameters automatically
 my_nn = torch.nn.Sequential(
-    torch.nn.Linear(input_size, hidden_size),
-    torch.nn.Sigmoid(),
-    torch.nn.Linear(hidden_size, output_size),
+    torch.nn.Linear(input_size, hidden_size),  # full connected layer (14,18)
+    torch.nn.Sigmoid(),  # nn.ReLU()
+    torch.nn.Linear(hidden_size, output_size),  # (128,1)
 )
 # Mean squared error (MSE) is the most commonly used loss function for regression.
-cost = torch.nn.MSELoss(reduction='mean')
+cost = torch.nn.MSELoss(reduction='mean')  # loss = cost(prediction,true_labels)
+# update all parameters of my_nn sequence
 optimizer = torch.optim.Adam(my_nn.parameters(), lr=0.001)
 
 # train the NN
@@ -146,11 +153,11 @@ for i in range(1000):
         end = start + batch_size if start + batch_size < len(input_features) else len(input_features)
         xx = torch.tensor(input_features[start:end], dtype=torch.float, requires_grad=True)
         yy = torch.tensor(labels[start:end], dtype=torch.float, requires_grad=True)
-        prediction = my_nn(xx)
+        prediction = my_nn(xx)  # prediction of every mini-batch data
         loss = cost(prediction, yy)
-        optimizer.zero_grad()
+        optimizer.zero_grad()  # clear gradient to zero
         loss.backward(retain_graph=True)
-        optimizer.step()
+        optimizer.step()  # update all parameters
         batch_loss.append(loss.data.numpy())
 
     # print the loss
@@ -160,7 +167,7 @@ for i in range(1000):
 
 # Predict the training results
 x = torch.tensor(input_features, dtype=torch.float)
-predict = my_nn(x).data.numpy()
+predict = my_nn(x).data.numpy()  # prediction of original DataFrame
 
 # transform to datetime format
 dates = [str(int(year)) + '-' + str(int(month)) + '-' + str(int(day)) for year, month, day in zip(years, months, days)]
@@ -187,12 +194,12 @@ plt.plot(true_data['date'], true_data['actual'], 'b-', label='actual')
 
 # prediction data
 plt.plot(predictions_data['date'], predictions_data['prediction'], 'ro', label='prediction')
-plt.xticks(rotation='60');
-plt.legend()
+plt.xticks(rotation='60')
+plt.legend()  # show 'actual' label and 'prediction' label
 
 # graph name
-plt.xlabel('Date');
-plt.ylabel('Maximum Temperature (F)');
-plt.title('Actual and Predicted Values');
+plt.xlabel('Date')
+plt.ylabel('Maximum Temperature (F)')
+plt.title('Actual and Predicted Values')
 
 plt.show()
