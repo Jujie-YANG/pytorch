@@ -82,17 +82,14 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
     input_size = 0
 
     if model_name == "resnet":
+
         """ Resnet152
         """
-        # model_ft = models.resnet152(pretrained=use_pretrained)
-        ''' Resnet18
-        '''
-        # model_ft = models.resnet18(pretrained=use_pretrained)
-        model_ft = model_name(pretrained=use_pretrained)
+        model_ft = models.resnet152(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Sequential(nn.Linear(num_ftrs, num_classes),  # num_classes=102
-                                    nn.LogSoftmax(dim=1))
+        model_ft.fc = nn.Sequential(nn.Linear(num_ftrs, num_classes),
+                                   nn.LogSoftmax(dim=1))
         input_size = 224
 
     elif model_name == "alexnet":
@@ -152,7 +149,7 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
     return model_ft, input_size
 
 
-model_ft, input_size = initialize_model(models.resnet18, 102, feature_extract, use_pretrained=True)
+model_ft, input_size = initialize_model("resnet", 102, feature_extract, use_pretrained=True)
 
 # Use GPU to calculate
 model_ft = model_ft.to(device)
@@ -290,5 +287,5 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
 
 
 # Start training!
-model_ft = models.resnet18()
+model_ft = models.resnet50()
 model_ft, val_acc_history, train_acc_history, valid_losses, train_losses, LRs  = train_model(model_ft, dataloaders, criterion, optimizer_ft, num_epochs=20, is_inception=(model_name=="inception"))

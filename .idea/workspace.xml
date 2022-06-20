@@ -3,6 +3,7 @@
   <component name="ChangeListManager">
     <list default="true" id="6ec529eb-d4fe-4d74-a1da-9de5db285e7b" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CNN.py" beforeDir="false" afterPath="$PROJECT_DIR$/CNN.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -103,6 +104,9 @@
       <module name="pytorch" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
       <option name="SDK_HOME" value="" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
       <option name="IS_MODULE_SDK" value="true" />
@@ -134,7 +138,9 @@
       <option name="presentableId" value="Default" />
       <updated>1655129756190</updated>
       <workItem from="1655130103007" duration="46000" />
-      <workItem from="1655130182745" duration="25305000" />
+      <workItem from="1655130182745" duration="26038000" />
+      <workItem from="1655294373598" duration="1196000" />
+      <workItem from="1655326595654" duration="4296000" />
     </task>
     <servers />
   </component>
@@ -151,5 +157,6 @@
         </entry>
       </map>
     </option>
+    <option name="oldMeFiltersMigrated" value="true" />
   </component>
 </project>
