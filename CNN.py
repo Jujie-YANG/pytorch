@@ -1,20 +1,16 @@
+import copy
+import json
 import os
+# https://pytorch.org/docs/stable/torchvision/index.html
+import time
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch import nn
 import torch.optim as optim
-import torchvision
-from torchvision import transforms, models, datasets
-# https://pytorch.org/docs/stable/torchvision/index.html
-import imageio
-import time
-import warnings
-import random
-import sys
-import copy
-import json
 from PIL import Image
+from torch import nn
+from torchvision import transforms, models, datasets
 
 # Read data and preprocess data
 data_dir = './flower_data/'
@@ -85,11 +81,11 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
 
         """ Resnet152
         """
-        model_ft = models.resnet152(pretrained=use_pretrained)
+        model_ft = models.resnet18(pretrained=use_pretrained)
         set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Sequential(nn.Linear(num_ftrs, num_classes),
-                                   nn.LogSoftmax(dim=1))
+                                    nn.LogSoftmax(dim=1))
         input_size = 224
 
     elif model_name == "alexnet":
@@ -288,4 +284,145 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
 
 # Start training!
 model_ft = models.resnet50()
-model_ft, val_acc_history, train_acc_history, valid_losses, train_losses, LRs  = train_model(model_ft, dataloaders, criterion, optimizer_ft, num_epochs=20, is_inception=(model_name=="inception"))
+model_ft, val_acc_history, train_acc_history, valid_losses, train_losses, LRs = train_model(model_ft, dataloaders,
+                                                                                            criterion, optimizer_ft,
+                                                                                            num_epochs=20,
+                                                                                            is_inception=(
+                                                                                                    model_name == "inception"))
+
+# Then train all params by setting all gradients to be True
+for param in model_ft.parameters():
+    param.requires_grad = True
+
+# train all params instead and reduce a little learning rate
+optimizer = optim.Adam(params_to_update, lr=1e-4)
+scheduler = optim.lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+
+# Loss function
+criterion = nn.NLLLoss()
+
+# Load the checkpoint
+checkpoint = torch.load(filename)
+best_acc = checkpoint['best_acc']
+model_ft.load_state_dict(checkpoint['state_dict'])
+optimizer.load_state_dict(checkpoint['optimizer'])
+# model_ft.class_to_idx = checkpoint['mapping']
+
+model_ft, val_acc_history, train_acc_history, valid_losses, train_losses, LRs = train_model(model_ft, dataloaders,
+                                                                                            criterion, optimizer,
+                                                                                            num_epochs=10,
+                                                                                            is_inception=(
+                                                                                                    model_name == "inception"))
+
+# Load already trained model
+model_ft, input_size = initialize_model(model_name, 102, feature_extract, use_pretrained=True)
+
+# GPU mode
+model_ft = model_ft.to(device)
+
+#   save the file
+filename = 'seriouscheckpoint.pth'
+
+# Load trained model
+checkpoint = torch.load(filename)
+best_acc = checkpoint['best_acc']
+model_ft.load_state_dict(checkpoint['state_dict'])
+
+
+# Preprocess test dataset
+def process_image(image_path):
+    # Read test dataset
+    img = Image.open(image_path)
+    # Do condition statements because Resize & thumbnail methods can only reduce size
+    if img.size[0] > img.size[1]:
+        img.thumbnail((10000, 256))
+    else:
+        img.thumbnail((256, 10000))
+    # Crop to make sure the size of inputs are the same
+    left_margin = (img.width - 224) / 2
+    bottom_margin = (img.height - 224) / 2
+    right_margin = left_margin + 224
+    top_margin = bottom_margin + 224
+    img = img.crop((left_margin, bottom_margin, right_margin,
+                    top_margin))
+    # The same preprocessing methods
+    # Use the same mean and std methods as the training dataset, normalize in 0-1
+    img = np.array(img) / 255
+    mean = np.array([0.485, 0.456, 0.406])  # provided mean
+    std = np.array([0.229, 0.224, 0.225])  # provided std
+    img = (img - mean) / std
+
+    # the first position is color channel in Pytorch, we need to transpose (0,1,2) -> (2,0,1) = (color,h,w)
+    img = img.transpose((2, 0, 1))
+
+    return img
+
+
+def imshow(image, ax=None, title=None):
+    """show data"""
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    # restore the position of the color channel: (color,h,w) = (0,1,2) -> (1,2,0) =
+    image = np.array(image).transpose((1, 2, 0))
+
+    # restore the preprocessing operation
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
+    image = std * image + mean
+    image = np.clip(image, 0, 1)
+
+    ax.imshow(image)
+    ax.set_title(title)
+
+    return ax
+
+
+image_path = 'image_06621.jpg'
+img = process_image(image_path)
+imshow(img)
+
+# get a batch size of test data
+dataiter = iter(dataloaders['valid'])
+images, labels = dataiter.next()
+
+model_ft.eval()
+# output.shape = torch.Size([8, 102]) batch=8
+# output shows possibilities of each data in 102 classes
+if train_on_gpu:
+    output = model_ft(images.cuda())
+else:
+    output = model_ft(images)
+
+# Get the class with the largest possibilities
+_, preds_tensor = torch.max(output, 1)
+
+preds = np.squeeze(preds_tensor.numpy()) if not train_on_gpu else np.squeeze(preds_tensor.cpu().numpy())
+
+
+# preds = array([77, 22, 46, 46, 64, 93, 28, 48], dtype=int64)
+
+
+# Show prediction results in images
+def im_convert(tensor):
+    """ show data"""
+
+    image = tensor.to("cpu").clone().detach()
+    image = image.numpy().squeeze()
+    image = image.transpose(1, 2, 0)
+    image = image * np.array((0.229, 0.224, 0.225)) + np.array((0.485, 0.456, 0.406))
+    image = image.clip(0, 1)
+
+    return image
+
+
+fig = plt.figure(figsize=(20, 20))
+columns = 4
+rows = 2
+
+for idx in range(columns * rows):
+    ax = fig.add_subplot(rows, columns, idx + 1, xticks=[], yticks=[])
+    plt.imshow(im_convert(images[idx]))
+    ax.set_title("{} ({})".format(cat_to_name[str(preds[idx])], cat_to_name[str(labels[idx].item())]),
+                 color=("green" if cat_to_name[str(preds[idx])] == cat_to_name[str(labels[idx].item())] else "red"))
+plt.show()
